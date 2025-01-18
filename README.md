@@ -101,6 +101,13 @@ async fn handle_sse() -> Sse<impl Stream<Item = Result<Event, axum::BoxError>>> 
 }
 ```
 
+## Compatibility
+
+| Crate version | Leptos version |
+|---------------|----------------|
+| 0.5.x         | 0.7.x          |
+| 0.4.x         | 0.6.x          |
+
 ## License
 
 This work is released under the MIT license. A copy of the license is provided in the [LICENSE](./LICENSE) file.

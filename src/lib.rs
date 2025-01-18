@@ -4,7 +4,7 @@
 use std::borrow::Cow;
 
 use json_patch::Patch;
-use leptos::{create_signal, ReadSignal};
+use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wasm_bindgen::JsValue;
@@ -109,14 +109,15 @@ pub fn provide_sse(url: &str) -> Result<(), JsValue> {
 #[allow(unused_variables)]
 pub fn create_sse_signal<T>(name: impl Into<Cow<'static, str>>) -> ReadSignal<T>
 where
-    T: Default + Serialize + for<'de> Deserialize<'de>,
+    T:'static + Send + Sync + Default + Serialize + for<'de> Deserialize<'de>,
 {
     let name = name.into();
-    let (get, set) = create_signal(T::default());
+    let (get, set) = signal(T::default());
 
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
-            use leptos::{use_context, create_effect, create_rw_signal, SignalSet, SignalGet};
+            use leptos::{use_context; create_effect, create_rw_signal, SignalSet, SignalGet};
+            use leptos::prelude::*; 
 
             let signal = create_rw_signal(serde_json::to_value(T::default()).unwrap());
             if let Some(ServerSignalEventSourceContext { state_signals, .. }) = use_context::<ServerSignalEventSourceContext>() {

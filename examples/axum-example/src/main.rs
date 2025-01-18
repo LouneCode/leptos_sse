@@ -7,7 +7,7 @@ async fn main() {
     };
     use axum_example::app::*;
     use axum_example::fileserv::file_and_error_handler;
-    use leptos::*;
+    use leptos::prelude::*;
     use leptos_axum::{generate_route_list, LeptosRoutes};
 
     simple_logger::init_with_level(log::Level::Debug).expect("couldn't initialize logging");
