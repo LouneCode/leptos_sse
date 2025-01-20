@@ -1,8 +1,11 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![doc = include_str!("../README.md")]
 
-use std::borrow::Cow;
+mod thread_safe_jsvalue;
 
+#[allow(unused_imports)]
+use thread_safe_jsvalue::{ThreadSafeJsValue, IntoThreadSafeJsValue};
+use std::borrow::Cow;
 use json_patch::Patch;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -116,19 +119,20 @@ where
 
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
-            use leptos::{use_context; create_effect, create_rw_signal, SignalSet, SignalGet};
             use leptos::prelude::*; 
 
-            let signal = create_rw_signal(serde_json::to_value(T::default()).unwrap());
+            let signal = RwSignal::new(serde_json::to_value(T::default()).unwrap());
             if let Some(ServerSignalEventSourceContext { state_signals, .. }) = use_context::<ServerSignalEventSourceContext>() {
                 let name: Cow<'static, str> = name.into();
-                state_signals.borrow_mut().insert(name.clone(), signal);
+                { //Mutex lock
+                    state_signals.lock().unwrap().insert(name.clone(), signal);
+                }
 
                 // Note: The leptos docs advise against doing this. It seems to work
                 // well in testing, and the primary caveats are around unnecessary
                 // updates firing, but our state synchronization already prevents
                 // that on the server side
-                create_effect(move |_| {
+                Effect::new(move |_| {
                     let name = name.clone();
                     let new_value = serde_json::from_value(signal.get()).unwrap();
                     set.set(new_value);
@@ -149,60 +153,58 @@ Ensure you call `leptos_sse::provide_sse("http://localhost:3000/sse")` at the hi
 
 cfg_if::cfg_if! {
     if #[cfg(target_arch = "wasm32")] {
-        use std::cell::RefCell;
         use std::collections::HashMap;
-        use std::ops::{Deref, DerefMut};
-        use std::rc::Rc;
-
         use web_sys::EventSource;
-        use leptos::{provide_context, RwSignal};
 
         /// Provides the context for the server signal `web_sys::EventSource`.
         ///
         /// You can use this via `use_context::<ServerSignalEventSource>()` to
         /// access the `EventSource` to set up additional event listeners and etc.
         #[derive(Clone, Debug, PartialEq, Eq)]
-        pub struct ServerSignalEventSource(pub EventSource);
+        
+        pub struct ServerSignalEventSource(pub ThreadSafeJsValue<EventSource>);
 
-        impl Deref for ServerSignalEventSource {
-            type Target = EventSource;
+        // use std::ops::{Deref, DerefMut};
+        // impl Deref for ServerSignalEventSource {
+        //     type Target = ThreadSafeJsValue<EventSource>;
+        //     fn deref(&self) -> &Self::Target {
+        //         &self.0
+        //     }
+        // }
 
-            fn deref(&self) -> &Self::Target {
-                &self.0
-            }
-        }
+        // impl DerefMut for ServerSignalEventSource {
+        //     type Target = ThreadSafeJsValue<EventSource>;        
+        //     fn deref_mut(&mut self) -> &mut Self::Target {
+        //         &mut self.0
+        //     }
+        // }
 
-        impl DerefMut for ServerSignalEventSource {
-            fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut self.0
-            }
-        }
+        use std::sync::{Arc, Mutex};
 
-        #[derive(Clone, Debug, PartialEq, Eq)]
+        #[derive(Clone, Debug, )]
         struct ServerSignalEventSourceContext {
-            inner: EventSource,
+            inner: ThreadSafeJsValue<EventSource>,
             // References to these are kept by the closure for the callback
             // onmessage callback on the event source
-            state_signals: Rc<RefCell<HashMap<Cow<'static, str>, RwSignal<Value>>>>,
+            state_signals: Arc<Mutex<HashMap<Cow<'static, str>, RwSignal<Value>>>>,
             // When the event source is first established, leptos may not have
             // completed the traversal that sets up all of the state signals.
             // Without that, we don't have a base state to apply the patches to,
             // and therefore we must keep a record of the patches to apply after
-            // the state has been set up.
-            delayed_updates: Rc<RefCell<HashMap<Cow<'static, str>, Vec<Patch>>>>,
+            // the state has been set up.       
+            delayed_updates: Arc<Mutex<HashMap<Cow<'static, str>, Vec<Patch>>>>,
         }
 
         #[inline]
         fn provide_sse_inner(url: &str) -> Result<(), JsValue> {
             use web_sys::MessageEvent;
             use wasm_bindgen::{prelude::Closure, JsCast};
-            use leptos::{use_context, SignalUpdate};
             use js_sys::{Function, JsString};
 
             if use_context::<ServerSignalEventSourceContext>().is_none() {
                 let es = EventSource::new(url)?;
-                provide_context(ServerSignalEventSource(es.clone()));
-                provide_context(ServerSignalEventSourceContext { inner: es, state_signals: Default::default(), delayed_updates: Default::default() });
+                provide_context(ServerSignalEventSource(es.clone().into_thread_safe_js_value()));
+                provide_context(ServerSignalEventSourceContext { inner: es.into_thread_safe_js_value(), state_signals: Default::default(), delayed_updates: Default::default()});
             }
 
             let es = use_context::<ServerSignalEventSourceContext>().unwrap();
@@ -211,23 +213,30 @@ cfg_if::cfg_if! {
             let callback = Closure::wrap(Box::new(move |event: MessageEvent| {
                 let ws_string = event.data().dyn_into::<JsString>().unwrap().as_string().unwrap();
                 if let Ok(update_signal) = serde_json::from_str::<ServerSignalUpdate>(&ws_string) {
-                    let handler_map = (*handlers).borrow();
                     let name = &update_signal.name;
-                    let mut delayed_map = (*delayed_updates).borrow_mut();
-                    if let Some(signal) = handler_map.get(name) {
-                        if let Some(delayed_patches) = delayed_map.remove(name) {
-                            signal.update(|doc| {
-                                for patch in delayed_patches {
-                                    json_patch::patch(doc, &patch).unwrap();
+                    {// Mutex locks
+                        let handler_map = (*handlers).lock().unwrap(); // Mutex lock
+                        if let Some(signal) = handler_map.get(name) {
+                            { // Mutex lock
+                                let mut delayed_map = (*delayed_updates).lock().unwrap(); 
+                                if let Some(delayed_patches) = delayed_map.remove(name) {
+                                    signal.update(|doc| {
+                                        for patch in delayed_patches {
+                                            json_patch::patch(doc, &patch).unwrap();
+                                        }
+                                    });
                                 }
+                            }
+                            signal.update(|doc| {
+                                json_patch::patch(doc, &update_signal.patch).unwrap();
                             });
+                        } else {
+                            leptos::logging::warn!("No local state for update to {}. Queuing patch.", name);
+                            { // Mutex lock
+                                let mut delayed_map = (*delayed_updates).lock().unwrap(); 
+                                delayed_map.entry(name.clone()).or_default().push(update_signal.patch.clone());
+                            }
                         }
-                        signal.update(|doc| {
-                            json_patch::patch(doc, &update_signal.patch).unwrap();
-                        });
-                    } else {
-                        leptos::logging::warn!("No local state for update to {}. Queuing patch.", name);
-                        delayed_map.entry(name.clone()).or_default().push(update_signal.patch.clone());
                     }
                 }
             }) as Box<dyn FnMut(_)>);

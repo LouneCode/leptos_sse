@@ -7,7 +7,7 @@ async fn main() -> std::io::Result<()> {
     use leptos::prelude::*;
     use leptos_actix::{generate_route_list, LeptosRoutes};
 
-    let conf = get_configuration(None).await.unwrap();
+    let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;
     // Generate the list of routes in your Leptos App
     let routes = generate_route_list(|| view! { <App/> });
@@ -20,11 +20,10 @@ async fn main() -> std::io::Result<()> {
             .route("/api/{tail:.*}", leptos_actix::handle_server_fns())
             .route("/sse", web::get().to(handle_sse))
             .leptos_routes(
-                leptos_options.to_owned(),
                 routes.to_owned(),
                 || view! { <App/> },
             )
-            .service(Files::new("/", site_root))
+            .service(Files::new("/", site_root.to_string()))
         //.wrap(middleware::Compress::default())
     })
     .bind(&addr)?

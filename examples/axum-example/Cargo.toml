@@ -20,7 +20,7 @@ serde = { version = "1.0", features = ["derive"] }
 simple_logger = "4"
 tokio = { version = "1.36", features = ["rt", "macros", "rt-multi-thread"], optional = true }
 tokio-stream = { version = "0.1.14", optional = true }
-tower = { version = "0.4", optional = true }
+tower = { version = "0.4", optional = true, features = ["util"]  }
 tower-http = { version = "0.5", features = ["fs"], optional = true }
 wasm-bindgen = "0.2"
 http = "1.0"
