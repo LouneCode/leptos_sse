@@ -1,6 +1,8 @@
 use leptos::prelude::*;
 use leptos_sse::create_sse_signal;
 use serde::{Deserialize, Serialize};
+ use reactive_graph::traits::Get;
+
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Count {

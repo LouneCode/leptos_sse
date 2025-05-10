@@ -14,15 +14,13 @@ use wasm_bindgen::JsValue;
 
 cfg_if::cfg_if! {
     if #[cfg(all(feature = "actix", feature = "ssr"))] {
-        mod actix;
-        pub use crate::actix::*;
+        pub mod actix;
     }
 }
 
 cfg_if::cfg_if! {
     if #[cfg(all(feature = "axum", feature = "ssr"))] {
-        mod axum;
-        pub use crate::axum::*;
+        pub mod axum;
     }
 }
 

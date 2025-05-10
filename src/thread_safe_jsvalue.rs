@@ -25,7 +25,6 @@
 ///
 /// There is also a macro to implement the From trait for ThreadSafeJsValue, that adds a type alias
 /// with a suffix.
-
 use std::{
     mem::{self, ManuallyDrop},
     ops::Deref,
