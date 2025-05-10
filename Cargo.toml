@@ -4,7 +4,7 @@ members = [".", "examples/*"]
 [package]
 name = "leptos_sse"
 version = "0.6.0"
-edition = "2021"
+edition = "2024"
 description = "Leptos server signals synced through server-sent-events (SSE)"
 repository = "https://github.com/LouneCode/leptos_sse"
 license = "MIT"
