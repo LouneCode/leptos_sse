@@ -105,6 +105,7 @@ async fn handle_sse() -> Sse<impl Stream<Item = Result<Event, axum::BoxError>>> 
 
 | Crate version | Leptos version |
 |---------------|----------------|
+| 0.6.x         | 0.8.x          |
 | 0.5.x         | 0.7.x          |
 | 0.4.x         | 0.6.x          |
 
