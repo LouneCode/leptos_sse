@@ -57,7 +57,7 @@ async fn handle_sse() -> Sse<impl Stream<Item = Result<Event, axum::BoxError>>> 
     use axum_example::app::Count;
     use futures::stream;
     //use leptos_sse::ServerSentEvents;
-    use leptos_sse::axum::ServerSentEvents;
+    use leptos_sse::ServerSentEvents;
     use std::time::Duration;
     use tokio_stream::StreamExt as _;
 

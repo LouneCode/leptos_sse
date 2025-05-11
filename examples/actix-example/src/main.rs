@@ -44,7 +44,7 @@ pub async fn handle_sse() -> impl actix_web::Responder {
     use actix_web_lab::sse;
     use futures::stream;
     //use leptos_sse::ServerSentEvents;
-    use leptos_sse::actix::ServerSentEvents;
+    use leptos_sse::ServerSentEvents;
     use std::time::Duration;
     use tokio_stream::StreamExt as _;
 
